@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SnapPill</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png" />
+  <link rel="shortcut icon" href="icons/icon-512.png" />
+  <meta name="theme-color" content="#336699" />
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #123; }
+    body { margin: 0; background: #f7fbff; display: flex; flex-direction: column; min-height: 100vh; }
+    header, footer { background: #fff; padding: 12px 16px; border-bottom: 1px solid #e6eef8; }
+    header { display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 20px; }
+    main { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .card { background: #fff; border: 1px solid #dbe8f8; border-radius: 10px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    input, button { padding: 8px; border-radius: 8px; border: 1px solid #ccd; font-size: 14px; }
+    button { background: #2e79ff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #1d5fd4; }
+    button.ghost { background: #eef; color: #234; }
+    button.ghost:hover { background: #dde; }
+    .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid #ccd; }
+    .list-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 8px; border-radius: 8px; background: #f9fcff; }
+    .meta { font-size: 13px; color: #456; }
+    footer { border-top: 1px solid #e6eef8; display: flex; justify-content: space-between; align-items: center; }
+    a.donate { background: #5c3aa1; color: white; padding: 6px 10px; border-radius: 8px; text-decoration: none; }
+    a.donate:hover { background: #4a2d85; }
+    label { display: block; margin-top: 8px; margin-bottom: 4px; font-size: 14px; font-weight: 500; }
+    .notification-banner { 
+      background: #fff3cd; 
+      border: 1px solid #ffc107; 
+      padding: 12px; 
+      border-radius: 8px; 
+      margin-bottom: 12px;
+      display: none;
+    }
+    .notification-banner.show { display: block; }
+    @media(min-width: 800px) {
+      main { flex-direction: row; }
+      #list { flex: 2; }
+      #sidePanel { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>💊 SnapPill</h1>
+    <button id="newBtn">+ New Snapshot</button>
+  </header>
+
+  <main>
+    <div id="notificationBanner" class="notification-banner">
+      <strong id="notifTitle">Time to take medicine!</strong>
+      <p id="notifBody" style="margin: 4px 0;"></p>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button id="notifTaken" style="font-size: 13px; padding: 6px 12px;">✓ Taken</button>
+        <button id="notifSnooze" class="ghost" style="font-size: 13px; padding: 6px 12px;">⏰ Snooze 10m</button>
+        <button id="notifDismiss" class="ghost" style="font-size: 13px; padding: 6px 12px;">✕ Dismiss</button>
+      </div>
+    </div>
+
+    <div id="scanCard" class="card" style="display:none">
+      <div class="list-item">
+        <img id="previewThumb" class="thumb" alt="preview" />
+        <div>
+          <div><strong id="predName">Preview</strong></div>
+          <div class="meta" id="predDose">Confirm details below</div>
+        </div>
+      </div>
+      <label>Medicine name *</label>
+      <input id="m_name" placeholder="e.g., Amlodipine" />
+      <label>Dose (optional)</label>
+      <input id="m_dose" placeholder="e.g., 5 mg / 1 tablet" />
+      <div class="row">
+        <div style="flex:1">
+          <label>Quantity available</label>
+          <input id="m_qty" type="number" value="30" style="width:100%" />
+        </div>
+        <div style="flex:1">
+          <label>Per intake</label>
+          <input id="m_per" type="number" value="1" style="width:100%" />
+        </div>
+      </div>
+      <label>Reminder time</label>
+      <input id="m_time" type="time" />
+      <div class="row" style="margin-top:12px">
+        <button id="saveSnap">Save & Schedule</button>
+        <button id="cancelSnap" class="ghost">Cancel</button>
+      </div>
+    </div>
+
+    <div id="list" class="card">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div><strong>Active Snapshots</strong></div>
+        <div id="counts" class="meta">0 items</div>
+      </div>
+      <div id="entries" style="margin-top: 12px;"></div>
+      <div id="empty" class="meta" style="margin-top:12px; text-align: center; padding: 20px;">No snapshots yet. Tap "New Snapshot" to add.</div>
+    </div>
+
+    <div id="sidePanel" class="card">
+      <div><strong>🕒 Upcoming Reminders</strong></div>
+      <div id="upcomingList" class="meta" style="margin-top:8px; padding: 8px; background: #f9fcff; border-radius: 6px;"></div>
+      <div style="margin-top: 16px;"><strong>⚠️ Low Stock Alerts</strong></div>
+      <div id="lowStockList" class="meta" style="margin-top:8px; padding: 8px; background: #fff9f0; border-radius: 6px;"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="meta">© 2024 SnapPill</div>
+    <a class="donate" href="https://paypal.me/NoorDevloper2025" target="_blank">☕ Buy me a coffee</a>
+  </footer>
+
+  <input id="fileInput" type="file" accept="image/*" capture="environment" style="display:none" />
+  
+  <script>
+    const STORAGE_KEY = 'snappill_entries_v1';
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let inMemoryTimers = {};
+    let currentNotificationId = null;
+
+    function saveAll() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function escapeHtml(s) {
+      return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function nextOccurrenceIso(time) {
+      const [hh, mm] = time.split(':').map(Number);
+      const now = new Date();
+      const occ = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0);
+      if (occ <= now) occ.setDate(occ.getDate() + 1);
+      return occ.toISOString();
+    }
+
+    function scheduleEntry(entry) {
+      cancelInMemoryTimer(entry.id);
+      const ms = new Date(nextOccurrenceIso(entry.time)).getTime() - Date.now();
+      const t = setTimeout(() => {
+        showNotification(entry);
+      }, ms);
+      inMemoryTimers[entry.id] = t;
+    }
+
+    function cancelInMemoryTimer(id) {
+      const ref = inMemoryTimers[id];
+      if (!ref) return;
+      clearTimeout(ref);
+      clearInterval(ref);
+      delete inMemoryTimers[id];
+    }
+
+    function showNotification(entry) {
+      const banner = document.getElementById('notificationBanner');
+      const title = document.getElementById('notifTitle');
+      const body = document.getElementById('notifBody');
+      
+      currentNotificationId = entry.id;
+      title.textContent = `⏰ Time to take: ${entry.name}`;
+      body.textContent = `${entry.dose || 'No dose specified'} • Quantity left: ${entry.qty}`;
+      banner.classList.add('show');
+      
+      playBeep();
+      
+      // Auto-repeat every 30 seconds
+      const repeatTimer = setInterval(() => {
+        playBeep();
+      }, 30000);
+      inMemoryTimers[entry.id + '_repeat'] = repeatTimer;
+      
+      // Scroll to top to show notification
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideNotificationBanner() {
+      const banner = document.getElementById('notificationBanner');
+      banner.classList.remove('show');
+      if (currentNotificationId) {
+        const repeatTimer = inMemoryTimers[currentNotificationId + '_repeat'];
+        if (repeatTimer) {
+          clearInterval(repeatTimer);
+          delete inMemoryTimers[currentNotificationId + '_repeat'];
+        }
+      }
+      currentNotificationId = null;
+    }
+
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = 880;
+        g.gain.value = 0.1;
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start();
+        setTimeout(() => {
+          o.stop();
+          ctx.close();
+        }, 300);
+      } catch (e) {
+        console.warn('sound failed', e);
+      }
+    }
+
+    function markTaken(id) {
+      const e = entries.find(x => x.id === id);
+      if (!e) return;
+      e.qty = Math.max(0, e.qty - (e.per || 1));
+      cancelInMemoryTimer(id);
+      if (e.qty > 0) {
+        scheduleEntry(e);
+      }
+      saveAll();
+      render();
+      hideNotificationBanner();
+    }
+
+    function deleteEntry(id) {
+      if (!confirm('Delete this medicine?')) return;
+      entries = entries.filter(e => e.id !== id);
+      cancelInMemoryTimer(id);
+      saveAll();
+      render();
+    }
+
+    function snoozeEntry(id) {
+      cancelInMemoryTimer(id);
+      const e = entries.find(x => x.id === id);
+      if (!e) return;
+      const t = setTimeout(() => {
+        showNotification(e);
+      }, 10 * 60 * 1000);
+      inMemoryTimers[id] = t;
+      hideNotificationBanner();
+    }
+
+    function renderEntries() {
+      const container = document.getElementById('entries');
+      const empty = document.getElementById('empty');
+      const counts = document.getElementById('counts');
+      container.innerHTML = '';
+      if (!entries.length) {
+        empty.style.display = 'block';
+        counts.textContent = '0 items';
+        return;
+      }
+      empty.style.display = 'none';
+      counts.textContent = entries.length + ' item' + (entries.length > 1 ? 's' : '');
+      entries.forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          <div style="display:flex;gap:12px;align-items:center;flex:1">
+            <img class="thumb" src="${e.thumb || ''}" alt="" onerror="this.style.display='none'"/>
+            <div>
+              <div style="font-weight:600">${escapeHtml(e.name)}</div>
+              <div class="meta">${escapeHtml(e.dose || 'No dose')} • ⏰ ${escapeHtml(e.time)} • 📦 ${e.qty} left</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button data-id="${e.id}" data-action="taken" style="font-size:12px;padding:4px 8px;">✓ Taken</button>
+            <button class="ghost" data-id="${e.id}" data-action="snooze" style="font-size:12px;padding:4px 8px;">💤 Snooze</button>
+            <button class="ghost" data-id="${e.id}" data-action="delete" style="font-size:12px;padding:4px 8px;">🗑️ Delete</button>
+          </div>`;
+        container.appendChild(div);
+      });
+      container.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.dataset.id;
+          const act = b.dataset.action;
+          if (act === 'taken') markTaken(id);
+          if (act === 'snooze') snoozeEntry(id);
+          if (act === 'delete') deleteEntry(id);
+        });
+      });
+    }
+
+    function renderSidePanel() {
+      const upcomingList = document.getElementById('upcomingList');
+      const lowStockList = document.getElementById('lowStockList');
+      const upcoming = entries
+        .filter(e => e.qty > 0)
+        .map(e => {
+          const next = new Date(nextOccurrenceIso(e.time));
+          return { name: e.name, time: next, dose: e.dose };
+        })
+        .sort((a, b) => a.time - b.time)
+        .slice(0, 5);
+      const lowStock = entries.filter(e => e.qty <= 3 && e.qty > 0);
+      upcomingList.innerHTML = upcoming.map(u =>
+        `<div style="padding: 4px 0;">📌 <strong>${escapeHtml(u.name)}</strong><br/><span style="font-size:12px;color:#667;">at ${u.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>`
+      ).join('') || '<div style="color:#889;">No upcoming reminders</div>';
+      lowStockList.innerHTML = lowStock.map(l =>
+        `<div style="padding: 4px 0;">⚠️ <strong>${escapeHtml(l.name)}</strong><br/><span style="font-size:12px;color:#667;">Only ${l.qty} left - refill soon!</span></div>`
+      ).join('') || '<div style="color:#889;">All stocks are good!</div>';
+    }
+
+    function render() {
+      renderEntries();
+      renderSidePanel();
+    }
+
+    function initSchedules() {
+      entries.forEach(e => {
+        if (e.active && e.qty > 0) scheduleEntry(e);
+      });
+    }
+
+    // Event listeners
+    document.getElementById('newBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      showScanCard(url);
+    });
+
+    function showScanCard(imgUrl) {
+      const thumb = document.getElementById('previewThumb');
+      thumb.src = imgUrl;
+      thumb.dataset.src = imgUrl;
+      document.getElementById('scanCard').style.display = 'block';
+      document.getElementById('m_name').value = '';
+      document.getElementById('m_dose').value = '';
+      document.getElementById('m_qty').value = 30;
+      document.getElementById('m_per').value = 1;
+      document.getElementById('m_time').value = new Date().toTimeString().slice(0, 5);
+    }
+
+    document.getElementById('cancelSnap').addEventListener('click', () => {
+      document.getElementById('scanCard').style.display = 'none';
+    });
+
+    document.getElementById('saveSnap').addEventListener('click', () => {
+      const name = document.getElementById('m_name').value.trim();
+      if (!name) {
+        alert('⚠️ Please enter medicine name');
+        return;
+      }
+      const entry = {
+        id: uid(),
+        name: name,
+        dose: document.getElementById('m_dose').value.trim(),
+        qty: parseInt(document.getElementById('m_qty').value) || 30,
+        per: parseInt(document.getElementById('m_per').value) || 1,
+        time: document.getElementById('m_time').value,
+        thumb: document.getElementById('previewThumb').src,
+        active: true,
+        createdAt: new Date().toISOString()
+      };
+      entries.push(entry);
+      saveAll();
+      scheduleEntry(entry);
+      render();
+      document.getElementById('scanCard').style.display = 'none';
+    });
+
+    // Notification banner buttons
+    document.getElementById('notifTaken').addEventListener('click', () => {
+      if (currentNotificationId) markTaken(currentNotificationId);
+    });
+
+    document.getElementById('notifSnooze').addEventListener('click', () => {
+      if (currentNotificationId) snoozeEntry(currentNotificationId);
+    });
+
+    document.getElementById('notifDismiss').addEventListener('click', () => {
+      hideNotificationBanner();
+    });
+
+    // Initialize
+    render();
+    initSchedules();
+  </script>
+</body>
+</html>
